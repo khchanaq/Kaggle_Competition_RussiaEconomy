@@ -62,9 +62,17 @@ test_data_X = convert_to_float(test_data_X.values)
 from sklearn.preprocessing import Imputer
 test_data_X = Imputer().fit_transform(test_data_X)
 train_data_X = Imputer().fit_transform(train_data_X)
-
+'''
+# Feature Scaling
+from sklearn.preprocessing import StandardScaler
+sc_X = StandardScaler()
+train_data_X = sc_X.fit_transform(train_data_X)
+test_data_X = sc_X.transform(test_data_X)
+sc_y = StandardScaler()
+train_data_y = sc_y.fit_transform(train_data_y)
+'''
 #######################################-----Day 1 Finsihed-----#########################################
-
+'''
 #feature reduction withPCA
 from sklearn.decomposition import PCA
 pca = PCA(n_components = 6).fit(train_data_X)
@@ -73,16 +81,16 @@ train_data_X = pd.DataFrame(train_data_X)
 test_data_X = pd.DataFrame(test_data_X)
 
 # Generate PCA results plot
-pca_results = vs.pca_results(train_data_X, pca)
+#pca_results = vs.pca_results(train_data_X, pca)
 
 # Tranform into reduced data
 train_data_X_pca = pca.transform(train_data_X)
 test_data_X_pca = pca.transform(test_data_X)
-
+'''
 
 # Split into test/train test
 from sklearn.cross_validation import train_test_split
-X_train, X_test, y_train, y_test = train_test_split(train_data_X_pca, train_data_y, test_size = 0.2, random_state = 0)
+X_train, X_test, y_train, y_test = train_test_split(train_data_X, train_data_y, test_size = 0.2, random_state = 0)
 
 '''
 # Trial with Random Forest
@@ -108,11 +116,11 @@ from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
 
 #Create the parameters list you wish to tune
-parameters = {'learning_rate': [0.01, 0.05, 0.1, 0.15, 0.2],
-              'min_child_weight': [1, 5, 10, 15],
-              'max_depth': [3, 5, 7, 10],
-              'subsample': [0.5, 1],
-              'objective': ["reg:logistic", "reg:gamma", "reg:tweedie"]
+parameters = {'learning_rate': [0.01, 0.1, 0.2],
+              'min_child_weight': [1, 7, 15],
+              'max_depth': [3, 7, 10],
+              'subsample': [0.5],
+              'objective': ["reg:linear", "reg:gamma", "reg:tweedie"]
               }
 
 scorer = make_scorer(rmsle, greater_is_better=False)
@@ -122,7 +130,8 @@ grid_obj = GridSearchCV(estimator = regressor,
                            param_grid = parameters,
                            scoring = scorer,
                            cv = 10,
-                           verbose=10)
+                           verbose=10,
+                           n_jobs = -1)
 
 #Fit the grid search object to the training data and find the optimal parameters
 grid_fit = grid_obj.fit(train_data_X, train_data_y)
