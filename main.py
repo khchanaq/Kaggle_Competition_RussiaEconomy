@@ -72,7 +72,7 @@ sc_y = StandardScaler()
 train_data_y = sc_y.fit_transform(train_data_y)
 '''
 #######################################-----Day 1 Finsihed-----#########################################
-'''
+
 #feature reduction withPCA
 from sklearn.decomposition import PCA
 pca = PCA(n_components = 6).fit(train_data_X)
@@ -86,11 +86,11 @@ test_data_X = pd.DataFrame(test_data_X)
 # Tranform into reduced data
 train_data_X_pca = pca.transform(train_data_X)
 test_data_X_pca = pca.transform(test_data_X)
-'''
+
 
 # Split into test/train test
 from sklearn.cross_validation import train_test_split
-X_train, X_test, y_train, y_test = train_test_split(train_data_X, train_data_y, test_size = 0.2, random_state = 0)
+X_train, X_test, y_train, y_test = train_test_split(train_data_X_pca, train_data_y, test_size = 0.2, random_state = 0)
 
 '''
 # Trial with Random Forest
@@ -120,7 +120,7 @@ parameters = {'learning_rate': [0.01, 0.1, 0.2],
               'min_child_weight': [1, 7, 15],
               'max_depth': [3, 7, 10],
               'subsample': [0.5],
-              'objective': ["reg:linear", "reg:gamma", "reg:tweedie"]
+              'objective': ["reg:linear"]
               }
 
 scorer = make_scorer(rmsle, greater_is_better=False)
@@ -148,17 +148,19 @@ regressor.fit(train_data_X, train_data_y)
 
 '''
 
-y_pred_test = best_clf.predict(test_data_X).astype(np.int32)
+y_pred_test = best_clf.predict(test_data_X_pca).astype(np.int32)
 
 
-y_pred_test = regressor.predict(test_data_X).astype(np.int32)
+'''
+y_pred_test = regressor.predict(test_data_X_pca).astype(np.int32)
+'''
 
 results = pd.DataFrame({
     'id' : test_data['id'].astype(np.int32),
     'price_doc' : y_pred_test
 })
 
-results.to_csv("./submission_with_XG.csv", index=False)
+results.to_csv("./submission_with_XG_optimized_PCA.csv", index=False)
 
 #######################################-----Day 2 Finsihed-----#########################################
 
