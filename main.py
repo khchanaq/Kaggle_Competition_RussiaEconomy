@@ -116,10 +116,10 @@ from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
 
 #Create the parameters list you wish to tune
-parameters = {'learning_rate': [0.01, 0.1, 0.2],
-              'min_child_weight': [1, 7, 15],
-              'max_depth': [3, 7, 10],
-              'subsample': [0.5],
+parameters = {'learning_rate': [0.05, 0.1, 0.15],
+              'min_child_weight': [1],
+              'max_depth': [5, 7, 8],
+              'subsample': [0.3, 0.5, 0.7],
               'objective': ["reg:linear"]
               }
 
@@ -148,7 +148,7 @@ regressor.fit(train_data_X, train_data_y)
 
 '''
 
-y_pred_test = best_clf.predict(test_data_X_pca).astype(np.int32)
+y_pred_test = best_clf.predict(test_data_X).astype(np.int32)
 
 
 '''
@@ -160,7 +160,7 @@ results = pd.DataFrame({
     'price_doc' : y_pred_test
 })
 
-results.to_csv("./submission_with_XG_optimized_PCA.csv", index=False)
+results.to_csv("./submission_with_XG_optimized_2.csv", index=False)
 
 #######################################-----Day 2 Finsihed-----#########################################
 
