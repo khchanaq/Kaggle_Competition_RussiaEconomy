@@ -66,6 +66,34 @@ def convert_to_float(dataset):
 def rmsle(predicted, actual):
     return np.sqrt(np.nansum(np.square(np.log(predicted + 1) - np.log(actual + 1)))/float(len(predicted)))
 
+# Cross-validation with GridSearch
+from sklearn.metrics import make_scorer
+from sklearn.model_selection import GridSearchCV
+
+def AutoGridSearch(parameters, regressor):
+
+    scorer = make_scorer(rmsle, greater_is_better=False)
+#    while True:
+    
+    #Perform grid search on the classifier using 'scorer' as the scoring method
+    grid_obj = GridSearchCV(estimator = regressor,
+                               param_grid = parameters,
+                               scoring = scorer,
+                               cv = 10,
+                               verbose=10,
+                               n_jobs = -1)
+    
+    #Fit the grid search object to the training data and find the optimal parameters
+    grid_fit = grid_obj.fit(train_data_X, train_data_y)
+    
+    #if(best_score < grid_fit.best_score_):
+    best_score = grid_fit.best_score_
+        
+        
+    best_parameters = grid_fit.best_params_
+    
+    return best_score, best_parameters
+
 #Read dataset with pandas
 train_data = pd.read_csv("train.csv", quoting = 2)
 test_data = pd.read_csv("test.csv", quoting = 2)
@@ -180,93 +208,73 @@ X_train, X_test, y_train, y_test = train_test_split(train_data_X_pca, train_data
 from sklearn.ensemble import RandomForestRegressor
 regressor = RandomForestRegressor(n_estimators = 100, verbose = 10, n_jobs = -1)
 '''
+
+'''
 # Setup BaseModel - XGboost
 from xgboost import XGBRegressor as xgb
-xgb_regressor = xgb(verbose = 10, jobs = -1)
-Stacker_xgb_regressor = xgb(verbose = 10, jobs = -1)
+xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsamples = 0.8, verbose = 10, n_jobs = -1)
+Stacker_xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsamples = 0.8, verbose = 10, n_jobs = -1)
+'''
 
 # Setup BaseModel - RandomForestRegressor
 from sklearn.ensemble import RandomForestRegressor as rfr
-rfr_regressor = rfr(n_estimators = 100, verbose = 10, jobs = -1)
+rfr_regressor = rfr(n_estimators = 200, verbose = 10, n_jobs = -1)
+
+#Create the parameters list you wish to tune
+rfr_parameters = {'max_features': [0.1, 0.5, 0.9],
+              'min_sample_leaf': [50, 100, 150]}
+
+rfr_best_score, rfr_best_parameters = AutoGridSearch(rfr_parameters,rfr_regressor)
 
 from sklearn.ensemble import GradientBoostingRegressor as gbr
-gbr_regressor = gbr(verbose = 10, jobs = -1)
+gbr_regressor = gbr(n_estimators = 200, verbose = 10)
+
+#Create the parameters list you wish to tune
+gbr_parameters = {'learning_rate': [0.1, 0.5, 1.0],
+                  'max_depth': [3, 5, 7],
+              'min_sample_leaf': [50, 100, 150],
+              'subsample': [0.8],
+              'max_features': [0.1, 0.5, 0.9]}
+
+gbr_best_score, gbr_best_parameters = AutoGridSearch(gbr_parameters,gbr_regressor)
 
 from sklearn.ensemble import ExtraTreesRegressor as etr
-etr_regressor = etr(verbose = 10, jobs = -1)
+etr_regressor = etr(n_estimators = 200, verbose = 10)
+
+#Create the parameters list you wish to tune
+etr_parameters = {'learning_rate': [0.1, 0.5, 1.0],
+                  'max_depth': [3, 5, 7],
+              'min_sample_leaf': [50, 100, 150],
+              'subsample': [0.8],
+              'max_features': [0.1, 0.5, 0.9]}
+
+etr_best_score, etr_best_parameters = AutoGridSearch(etr_parameters,etr_regressor)
 
 
 # Trial with Random Forest
-ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [xgb_regressor, rfr_regressor, gbr_regressor, etr_regressor])
+#ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [xgb_regressor, rfr_regressor, gbr_regressor, etr_regressor])
 
-y_pred_test = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
+#y_pred_test = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
 
-from sklearn.cross_validation import cross_val_score
+#from sklearn.cross_validation import cross_val_score
 
-score = cross_val_score(ensemble, train_data_X, train_data_y, cv=5,score_func=rmsle)
-
-'''
-regressor.fit(X_train, y_train)
-
-# Predicting the Test set results
-y_pred = regressor.predict(X_test)
-
-result = rmsle(y_pred, y_test)
-'''
-
-'''
-# Cross-validation with GridSearch
-from sklearn.metrics import make_scorer
-from sklearn.model_selection import GridSearchCV
-
-#Create the parameters list you wish to tune
-parameters = {'learning_rate': [0.0825],
-              'min_child_weight': [1],
-              'max_depth': [7],
-              'subsample': [0.8],
-              'objective': ["reg:linear"],
-              'seed': [2017]
-              }
-
-scorer = make_scorer(rmsle, greater_is_better=False)
-
-#Perform grid search on the classifier using 'scorer' as the scoring method
-grid_obj = GridSearchCV(estimator = regressor,
-                           param_grid = parameters,
-                           scoring = scorer,
-                           cv = 10,
-                           verbose=10,
-                           n_jobs = -1)
-
-#Fit the grid search object to the training data and find the optimal parameters
-grid_fit = grid_obj.fit(train_data_X, train_data_y)
+#score = cross_val_score(ensemble, train_data_X, train_data_y, cv=2,scoring=rmsle)
 
 
-best_score = grid_fit.best_score_
-best_parameters = grid_fit.best_params_
-
-# Get the estimator
-best_clf = grid_fit.best_estimator_
-'''
-'''
-regressor.fit(train_data_X, train_data_y)
-
-'''
-'''
-y_pred_test = best_clf.predict(test_data_X).astype(np.int32)
-'''
 
 '''
 y_pred_test = regressor.predict(test_data_X_pca).astype(np.int32)
 '''
 
+
+'''
 results = pd.DataFrame({
     'id' : test_data['id'].astype(np.int32),
     'price_doc' : y_pred_test
 })
 
 results.to_csv("./submission/submission_with_ensemble_1st_try_20170528_1.csv", index=False)
-
+'''
 #######################################-----Day 2 Finsihed-----#########################################
 
 
