@@ -10,6 +10,10 @@ import numpy as np
 import pandas as pd
 import visuals as vs
 from sklearn.metrics import mean_squared_error
+from sklearn.ensemble import RandomForestRegressor as rfr
+
+#Import Imputer for missing value fill-in
+from sklearn.preprocessing import Imputer
 
 from sklearn.cross_validation import KFold
 
@@ -66,6 +70,25 @@ def convert_to_float(dataset):
 def rmsle(predicted, actual):
     return np.sqrt(np.nansum(np.square(np.log(predicted + 1) - np.log(actual + 1)))/float(len(predicted)))
 
+def FillMissingValue(df, fy):
+    train_data = df[df.iloc[fy].notnull()]  
+    test_data = df[df.iloc[fy].isnull()]  
+    train_y=train_data.iloc[:,fy]
+    train_X=train_data.copy()
+    train_X.drop(train_X.columns[fy], axis = 1)
+    test_X = test_data.copy()
+    test_X.drop(test_X.columns[fy], axis =1)
+    train_X = Imputer().fit_transform(train_X)
+    test_X = Imputer().fit_transform(test_X)
+    
+    rfr_regressor=rfr(n_estimators=100,n_jobs=-1)
+    #train the regressor
+    rfr_regressor.fit(train_X,train_y)
+    y_pred = rfr_regressor.predict(test_X)
+    df[fy][df.iloc[fy].isnull()]= y_pred
+    
+    return df
+
 # Cross-validation with GridSearch
 from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
@@ -93,6 +116,17 @@ def AutoGridSearch(parameters, regressor):
     best_parameters = grid_fit.best_params_
     
     return best_score, best_parameters
+
+def findMissingValue(X):
+    #Check out Empty Data
+    EmptyDataList = []
+    for i in range(0, len(X[0])):
+        if((np.isnan(np.min(X[:,i])))):
+            EmptyDataList.append(i)
+
+    return EmptyDataList
+
+
 
 #Read dataset with pandas
 train_data = pd.read_csv("train.csv", quoting = 2)
@@ -135,13 +169,15 @@ train_data_X = train_data_X.drop(train_data_X.columns[[3,4,5,6,7,8,20,143,144,14
 test_data_X = test_data_X.drop(test_data_X.columns[[3,4,5,6,7,8,20,143,144,145]], axis = 1)
 '''
 
-'''
-#Check out Empty Data
-EmptyDataList = []
-for i in range(0, len(train_data_X[0])):
-    if((np.isnan(np.min(train_data_X[:,i])))):
-        EmptyDataList.append(i)
+#find MissingValue with return list of index of missing value
+emptyList_train = findMissingValue(train_data_X)
+emptyList_test = findMissingValue(test_data_X)
 
+#set MissingValue with Random Forest
+train_data_X = FillMissingValue(train_data_X)
+test_data_X = FillMissingValue(test_data_X)
+
+'''
 corr_matrix =  (pd.DataFrame(train_data_X).corr())
 
 for i in range (0, len(corr_matrix)):
@@ -168,10 +204,9 @@ for i in range(0, 1):
     test_data_X_fillempty = train_data_X[:, BestCorIndex[i] == np.nan]
     
 '''
-#Import Imputer for missing value fill-in
-from sklearn.preprocessing import Imputer
-test_data_X = Imputer().fit_transform(test_data_X)
-train_data_X = Imputer().fit_transform(train_data_X)
+
+#test_data_X = Imputer().fit_transform(test_data_X)
+#train_data_X = Imputer().fit_transform(train_data_X)
 
 '''
 # Feature Scaling
@@ -217,12 +252,12 @@ Stacker_xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_de
 '''
 
 # Setup BaseModel - RandomForestRegressor
-from sklearn.ensemble import RandomForestRegressor as rfr
+#from sklearn.ensemble import RandomForestRegressor as rfr
 rfr_regressor = rfr(n_estimators = 200, verbose = 10, n_jobs = -1)
 
 #Create the parameters list you wish to tune
 rfr_parameters = {'max_features': [0.1, 0.5, 0.9],
-              'min_sample_leaf': [50, 100, 150]}
+              'min_samples_leaf': [50, 100, 150]}
 
 rfr_best_score, rfr_best_parameters = AutoGridSearch(rfr_parameters,rfr_regressor)
 
@@ -232,7 +267,7 @@ gbr_regressor = gbr(n_estimators = 200, verbose = 10)
 #Create the parameters list you wish to tune
 gbr_parameters = {'learning_rate': [0.1, 0.5, 1.0],
                   'max_depth': [3, 5, 7],
-              'min_sample_leaf': [50, 100, 150],
+              'min_samples_leaf': [50, 100, 150],
               'subsample': [0.8],
               'max_features': [0.1, 0.5, 0.9]}
 
@@ -244,7 +279,7 @@ etr_regressor = etr(n_estimators = 200, verbose = 10)
 #Create the parameters list you wish to tune
 etr_parameters = {'learning_rate': [0.1, 0.5, 1.0],
                   'max_depth': [3, 5, 7],
-              'min_sample_leaf': [50, 100, 150],
+              'min_samples_leaf': [50, 100, 150],
               'subsample': [0.8],
               'max_features': [0.1, 0.5, 0.9]}
 
