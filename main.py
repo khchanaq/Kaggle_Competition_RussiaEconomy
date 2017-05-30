@@ -6,17 +6,37 @@ Created on Mon May 22 20:57:30 2017
 @author: khchanaq
 """
 
+#Basic Packages
 import numpy as np
 import pandas as pd
+
+#Visualization for Data
 import visuals as vs
-from sklearn.metrics import mean_squared_error
+
+#Import ML Models that used
 from sklearn.ensemble import RandomForestRegressor as rfr
+from sklearn.ensemble import GradientBoostingRegressor as gbr
+from sklearn.ensemble import ExtraTreesRegressor as etr
+
 
 #Import Imputer for missing value fill-in
 from sklearn.preprocessing import Imputer
 
+#StandardScaler for Feature Scaling
+from sklearn.preprocessing import StandardScaler
+
+
+#Feature Reduction with PCA package
+from sklearn.decomposition import PCA
+
+
+# Cross-validation with GridSearch
+from sklearn.metrics import make_scorer
+from sklearn.model_selection import GridSearchCV
 from sklearn.cross_validation import KFold
 
+
+#Ensemble Learning Model for final prediction - Stacking Approach
 class Ensemble(object):
     def __init__(self, n_folds, stacker, base_models):
         self.n_folds = n_folds
@@ -70,28 +90,32 @@ def convert_to_float(dataset):
 def rmsle(predicted, actual):
     return np.sqrt(np.nansum(np.square(np.log(predicted + 1) - np.log(actual + 1)))/float(len(predicted)))
 
-def FillMissingValue(df, fy):
-    train_data = df[df.iloc[fy].notnull()]  
-    test_data = df[df.iloc[fy].isnull()]  
-    train_y=train_data.iloc[:,fy]
-    train_X=train_data.copy()
-    train_X.drop(train_X.columns[fy], axis = 1)
-    test_X = test_data.copy()
-    test_X.drop(test_X.columns[fy], axis =1)
-    train_X = Imputer().fit_transform(train_X)
-    test_X = Imputer().fit_transform(test_X)
+def fillMissingValue(df, fy):
+
+    df = pd.DataFrame(df)
+    train_data_temp = df[df.iloc[:,fy].notnull()]  
+    test_data_temp = df[df.iloc[:,fy].isnull()]  
+    train_y=train_data_temp.iloc[:,fy]
+    train_X=train_data_temp.copy()
+    train_X = train_X.drop(train_X.columns[fy], axis = 1)
+    test_X = test_data_temp.copy()
+    test_X = test_X.drop(test_X.columns[fy], axis =1)
+    mixed_X = Imputer().fit_transform(train_X.append(test_X, ignore_index=True))
+    length_train = len(train_X)
+    train_X = mixed_X[:length_train,:]
+    test_X = mixed_X[length_train:,:]
     
-    rfr_regressor=rfr(n_estimators=100,n_jobs=-1)
+    print ("Try to fill-up value with rfr")
+    rfr_regressor=rfr(n_estimators=10, verbose = 5)
     #train the regressor
     rfr_regressor.fit(train_X,train_y)
     y_pred = rfr_regressor.predict(test_X)
-    df[fy][df.iloc[fy].isnull()]= y_pred
     
-    return df
+    df[fy][df.iloc[:,fy].isnull()] = y_pred
+    
+    
+    return df.values
 
-# Cross-validation with GridSearch
-from sklearn.metrics import make_scorer
-from sklearn.model_selection import GridSearchCV
 
 def AutoGridSearch(parameters, regressor):
 
@@ -126,7 +150,14 @@ def findMissingValue(X):
 
     return EmptyDataList
 
+def submit(test_data, y_pred, filename):
 
+    results = pd.DataFrame({
+    'id' : test_data['id'].astype(np.int32),
+    'price_doc' : y_pred
+    })
+
+    results.to_csv("./submission/submission" + filename + ".csv", index=False)
 
 #Read dataset with pandas
 train_data = pd.read_csv("train.csv", quoting = 2)
@@ -150,6 +181,13 @@ test_data_X = test_data_X.iloc[:,1:]
 mixed_data_X = train_data_X.append(test_data_X, ignore_index=True)
 length_train = len(train_data_X)
 mixed_data_X = pd.get_dummies(mixed_data_X)
+templist = []
+for i in range(0, len(mixed_data_X.iloc[0])):
+    if((np.isnan(np.max(mixed_data_X.iloc[:,i])))):
+        templist.append(i)
+        
+mixed_data_X = pd.DataFrame(mixed_data_X).drop(mixed_data_X.columns[templist], axis = 1)
+
 
 train_data_X = mixed_data_X.iloc[:length_train,:]
 test_data_X = mixed_data_X.iloc[length_train:,:]
@@ -158,25 +196,27 @@ test_data_X = mixed_data_X.iloc[length_train:,:]
 train_data_X = convert_to_float(train_data_X.values)
 test_data_X = convert_to_float(test_data_X.values)
 
-'''
-train_data_X = pd.DataFrame(train_data_X)
-test_data_X = pd.DataFrame(test_data_X)
-
-NonNan_train = train_data_X.count()
-NonNan_train = NonNan_train / len(train_data_X)
-NonNan_test = test_data_X.count()
-train_data_X = train_data_X.drop(train_data_X.columns[[3,4,5,6,7,8,20,143,144,145]], axis = 1)
-test_data_X = test_data_X.drop(test_data_X.columns[[3,4,5,6,7,8,20,143,144,145]], axis = 1)
-'''
-
 #find MissingValue with return list of index of missing value
 emptyList_train = findMissingValue(train_data_X)
 emptyList_test = findMissingValue(test_data_X)
 
-#set MissingValue with Random Forest
-train_data_X = FillMissingValue(train_data_X)
-test_data_X = FillMissingValue(test_data_X)
 
+#TODO: Modulaize it
+
+#set MissingValue with Random Forest
+for i in emptyList_train:
+    print ("Filling-up Train column : " + str(i))
+    train_data_X = fillMissingValue(train_data_X, i)
+    print ("The result of fill-up value = " + str(np.isnan(np.min(train_data_X[:,i]))))
+
+
+for i in emptyList_test:
+    print ("Filling-up Test column : " + str(i))
+    test_data_X = fillMissingValue(test_data_X, i)
+    print ("The result of fill-up value = " + str(np.isnan(np.min(test_data_X[:,i]))))
+
+
+#TODO: future dig deep in feature extraction
 '''
 corr_matrix =  (pd.DataFrame(train_data_X).corr())
 
@@ -205,12 +245,11 @@ for i in range(0, 1):
     
 '''
 
-#test_data_X = Imputer().fit_transform(test_data_X)
-#train_data_X = Imputer().fit_transform(train_data_X)
+
+#TODO: determine to have feature scaling or not
 
 '''
 # Feature Scaling
-from sklearn.preprocessing import StandardScaler
 sc_X = StandardScaler()
 train_data_X = sc_X.fit_transform(train_data_X)
 test_data_X = sc_X.transform(test_data_X)
@@ -218,9 +257,11 @@ sc_y = StandardScaler()
 train_data_y = sc_y.fit_transform(train_data_y)
 '''
 #######################################-----Day 1 Finsihed-----#########################################
+
+#TODO: Consider to have feature reduction or not
+    
 '''
 #feature reduction withPCA
-from sklearn.decomposition import PCA
 pca = PCA(n_components = 6).fit(train_data_X)
 
 train_data_X = pd.DataFrame(train_data_X)
@@ -233,89 +274,60 @@ test_data_X = pd.DataFrame(test_data_X)
 train_data_X_pca = pca.transform(train_data_X)
 test_data_X_pca = pca.transform(test_data_X)
 '''
-'''
-# Split into test/train test
-from sklearn.cross_validation import train_test_split
-X_train, X_test, y_train, y_test = train_test_split(train_data_X_pca, train_data_y, test_size = 0.2, random_state = 0)
-'''
-'''
-# Trial with Random Forest
-from sklearn.ensemble import RandomForestRegressor
-regressor = RandomForestRegressor(n_estimators = 100, verbose = 10, n_jobs = -1)
-'''
 
-'''
+#TODO: Modulize the parameter tuning
+
 # Setup BaseModel - XGboost
 from xgboost import XGBRegressor as xgb
 xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsamples = 0.8, verbose = 10, n_jobs = -1)
 Stacker_xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsamples = 0.8, verbose = 10, n_jobs = -1)
-'''
 
 # Setup BaseModel - RandomForestRegressor
-#from sklearn.ensemble import RandomForestRegressor as rfr
 rfr_regressor = rfr(n_estimators = 200, verbose = 10, n_jobs = -1)
+# Best Parameter: max_features - 0.9, min_samples_leaf - 50 ; score -0.47517
+
 
 #Create the parameters list you wish to tune
-rfr_parameters = {'max_features': [0.1, 0.5, 0.9],
-              'min_samples_leaf': [50, 100, 150]}
+rfr_parameters = {'max_features': [0.7, 0.8, 0.9],
+              'min_samples_leaf': [25, 50, 75],
+              'random_state': [2017]}
 
 rfr_best_score, rfr_best_parameters = AutoGridSearch(rfr_parameters,rfr_regressor)
 
-from sklearn.ensemble import GradientBoostingRegressor as gbr
-gbr_regressor = gbr(n_estimators = 200, verbose = 10)
+gbr_regressor = gbr(n_estimators = 200, verbose = 5)
+# Best Parameter: learning_rate - 0.1, max_depth = 7, max_features - 0.5, min_samples_leaf - 50, sub_samples = 0.8 ; score -0.466787
+
 
 #Create the parameters list you wish to tune
-gbr_parameters = {'learning_rate': [0.1, 0.5, 1.0],
-                  'max_depth': [3, 5, 7],
-              'min_samples_leaf': [50, 100, 150],
+gbr_parameters = {'learning_rate': [0.01, 0.1, 0.5],
+                  'max_depth': [6, 7, 8],
+              'min_samples_leaf': [25, 50, 75],
               'subsample': [0.8],
-              'max_features': [0.1, 0.5, 0.9]}
+              'max_features': [0.3, 0.5, 0.7],
+              'random_state': [2017]}
 
 gbr_best_score, gbr_best_parameters = AutoGridSearch(gbr_parameters,gbr_regressor)
 
-from sklearn.ensemble import ExtraTreesRegressor as etr
 etr_regressor = etr(n_estimators = 200, verbose = 10)
 
 #Create the parameters list you wish to tune
-etr_parameters = {'learning_rate': [0.1, 0.5, 1.0],
-                  'max_depth': [3, 5, 7],
+etr_parameters = {'max_depth': [3, 5, 7],
               'min_samples_leaf': [50, 100, 150],
-              'subsample': [0.8],
-              'max_features': [0.1, 0.5, 0.9]}
+              'max_features': [0.1, 0.5, 0.9],
+              'min_impurity_split': [50, 100, 150],
+              'random_state': [2017]}
 
 etr_best_score, etr_best_parameters = AutoGridSearch(etr_parameters,etr_regressor)
 
 
-# Trial with Random Forest
-#ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [xgb_regressor, rfr_regressor, gbr_regressor, etr_regressor])
+#TODO: Ensemble with CV score implementation
 
-#y_pred_test = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
+# Ensemble Run
+ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [xgb_regressor, rfr_regressor, gbr_regressor, etr_regressor])
 
-#from sklearn.cross_validation import cross_val_score
+y_pred = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
 
-#score = cross_val_score(ensemble, train_data_X, train_data_y, cv=2,scoring=rmsle)
-
-
-
-'''
-y_pred_test = regressor.predict(test_data_X_pca).astype(np.int32)
-'''
-
-
-'''
-results = pd.DataFrame({
-    'id' : test_data['id'].astype(np.int32),
-    'price_doc' : y_pred_test
-})
-
-results.to_csv("./submission/submission_with_ensemble_1st_try_20170528_1.csv", index=False)
-'''
-#######################################-----Day 2 Finsihed-----#########################################
-
-
-# Produce a scatter matrix for each pair of features in the data
-#pd.scatter_matrix(macro_data.iloc[:, :], alpha = 0.3, figsize = (14,8), diagonal = 'kde');
-
+submit(test_data, y_pred, "Ensemble-V1")
 
 
 
