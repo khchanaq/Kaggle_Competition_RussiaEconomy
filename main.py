@@ -106,7 +106,7 @@ def fillMissingValue(df, fy):
     test_X = mixed_X[length_train:,:]
     
     print ("Try to fill-up value with rfr")
-    rfr_regressor=rfr(n_estimators=10, verbose = 5)
+    rfr_regressor=rfr(n_estimators=100, verbose = 5, n_jobs = -1)
     #train the regressor
     rfr_regressor.fit(train_X,train_y)
     y_pred = rfr_regressor.predict(test_X)
@@ -215,6 +215,10 @@ for i in emptyList_test:
     test_data_X = fillMissingValue(test_data_X, i)
     print ("The result of fill-up value = " + str(np.isnan(np.min(test_data_X[:,i]))))
 
+pd.DataFrame(train_data_X).to_csv("./ExtractedFeature/train_data_X_rfr_100.csv", index=False)
+
+pd.DataFrame(test_data_X).to_csv("./ExtractedFeature/test_data_X_rfr_100.csv", index=False)
+
 
 #TODO: future dig deep in feature extraction
 '''
@@ -279,11 +283,13 @@ test_data_X_pca = pca.transform(test_data_X)
 
 # Setup BaseModel - XGboost
 from xgboost import XGBRegressor as xgb
-xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsamples = 0.8, verbose = 10, n_jobs = -1)
-Stacker_xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsamples = 0.8, verbose = 10, n_jobs = -1)
+xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsamples = 0.8, verbose = 10, random_state = 2017, n_jobs = -1)
+Stacker_xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsamples = 0.8, verbose = 10, random_state = 2017, n_jobs = -1)
+
+
 
 # Setup BaseModel - RandomForestRegressor
-rfr_regressor = rfr(n_estimators = 200, verbose = 10, n_jobs = -1)
+rfr_regressor = rfr(n_estimators = 200, verbose = 10, max_features = 0.9, min_samples_leaf = 50, random_state = 2017)
 # Best Parameter: max_features - 0.9, min_samples_leaf - 50 ; score -0.47517
 
 
@@ -292,9 +298,9 @@ rfr_parameters = {'max_features': [0.7, 0.8, 0.9],
               'min_samples_leaf': [25, 50, 75],
               'random_state': [2017]}
 
-rfr_best_score, rfr_best_parameters = AutoGridSearch(rfr_parameters,rfr_regressor)
+#rfr_best_score, rfr_best_parameters = AutoGridSearch(rfr_parameters,rfr_regressor)
 
-gbr_regressor = gbr(n_estimators = 200, verbose = 5)
+gbr_regressor = gbr(n_estimators = 200, verbose = 5, learning_rate = 0.1, max_depth = 7, max_features = 0.5, min_samples_leaf = 50, subsample = 0.8, random_state = 2017)
 # Best Parameter: learning_rate - 0.1, max_depth = 7, max_features - 0.5, min_samples_leaf - 50, sub_samples = 0.8 ; score -0.466787
 
 
@@ -306,9 +312,9 @@ gbr_parameters = {'learning_rate': [0.01, 0.1, 0.5],
               'max_features': [0.3, 0.5, 0.7],
               'random_state': [2017]}
 
-gbr_best_score, gbr_best_parameters = AutoGridSearch(gbr_parameters,gbr_regressor)
+#gbr_best_score, gbr_best_parameters = AutoGridSearch(gbr_parameters,gbr_regressor)
 
-etr_regressor = etr(n_estimators = 200, verbose = 10)
+etr_regressor = etr(n_estimators = 200, verbose = 10, max_depth = 7, min_samples_leaf = 100, max_features = 0.9, min_impurity_split = 100, random_state = 2017)
 
 #Create the parameters list you wish to tune
 etr_parameters = {'max_depth': [3, 5, 7],
@@ -317,7 +323,7 @@ etr_parameters = {'max_depth': [3, 5, 7],
               'min_impurity_split': [50, 100, 150],
               'random_state': [2017]}
 
-etr_best_score, etr_best_parameters = AutoGridSearch(etr_parameters,etr_regressor)
+#etr_best_score, etr_best_parameters = AutoGridSearch(etr_parameters,etr_regressor)
 
 
 #TODO: Ensemble with CV score implementation
@@ -326,6 +332,10 @@ etr_best_score, etr_best_parameters = AutoGridSearch(etr_parameters,etr_regresso
 ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [xgb_regressor, rfr_regressor, gbr_regressor, etr_regressor])
 
 y_pred = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
+
+xgb_regressor.fit(train_data_X, train_data_y)
+
+y_pred = xgb_regressor.predict(test_data_X)
 
 submit(test_data, y_pred, "Ensemble-V1")
 
