@@ -17,7 +17,7 @@ import visuals as vs
 from sklearn.ensemble import RandomForestRegressor as rfr
 from sklearn.ensemble import GradientBoostingRegressor as gbr
 from sklearn.ensemble import ExtraTreesRegressor as etr
-
+from sklearn.svm import SVR
 
 #Import Imputer for missing value fill-in
 from sklearn.preprocessing import Imputer
@@ -106,10 +106,11 @@ def fillMissingValue(df, fy):
     test_X = mixed_X[length_train:,:]
     
     print ("Try to fill-up value with rfr")
-    rfr_regressor=rfr(n_estimators=100, verbose = 5, n_jobs = -1)
+    svr_regressor = SVR()
+    #rfr_regressor=rfr(n_estimators=100, verbose = 5, n_jobs = -1)
     #train the regressor
-    rfr_regressor.fit(train_X,train_y)
-    y_pred = rfr_regressor.predict(test_X)
+    svr_regressor.fit(train_X,train_y)
+    y_pred = svr_regressor.predict(test_X)
     
     df[fy][df.iloc[:,fy].isnull()] = y_pred
     
@@ -300,7 +301,7 @@ rfr_parameters = {'max_features': [0.7, 0.8, 0.9],
 
 #rfr_best_score, rfr_best_parameters = AutoGridSearch(rfr_parameters,rfr_regressor)
 
-gbr_regressor = gbr(n_estimators = 200, verbose = 5, learning_rate = 0.1, max_depth = 7, max_features = 0.5, min_samples_leaf = 50, subsample = 0.8, random_state = 2017)
+gbr_regressor = gbr(n_estimators = 200, verbose = 5, learning_rate = 0.08, max_depth = 7, max_features = 0.5, min_samples_leaf = 50, subsample = 0.8, random_state = 2017)
 # Best Parameter: learning_rate - 0.1, max_depth = 7, max_features - 0.5, min_samples_leaf - 50, sub_samples = 0.8 ; score -0.466787
 
 
@@ -333,11 +334,11 @@ ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [
 
 y_pred = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
 
-xgb_regressor.fit(train_data_X, train_data_y)
+#xgb_regressor.fit(train_data_X, train_data_y)
 
-y_pred = xgb_regressor.predict(test_data_X)
+#y_pred = xgb_regressor.predict(test_data_X)
 
-submit(test_data, y_pred, "Ensemble-V1")
+submit(test_data, y_pred, "Ensemble-V2-dataclean-svr")
 
 
 
