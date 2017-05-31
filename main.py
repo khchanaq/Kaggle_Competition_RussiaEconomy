@@ -17,7 +17,7 @@ import visuals as vs
 from sklearn.ensemble import RandomForestRegressor as rfr
 from sklearn.ensemble import GradientBoostingRegressor as gbr
 from sklearn.ensemble import ExtraTreesRegressor as etr
-from sklearn.svm import SVR
+from sklearn.svm import SVR as svr
 
 #Import Imputer for missing value fill-in
 from sklearn.preprocessing import Imputer
@@ -106,7 +106,7 @@ def fillMissingValue(df, fy):
     test_X = mixed_X[length_train:,:]
     
     print ("Try to fill-up value with rfr")
-    svr_regressor = SVR()
+    svr_regressor = svr()
     #rfr_regressor=rfr(n_estimators=100, verbose = 5, n_jobs = -1)
     #train the regressor
     svr_regressor.fit(train_X,train_y)
@@ -136,11 +136,12 @@ def AutoGridSearch(parameters, regressor):
     
     #if(best_score < grid_fit.best_score_):
     best_score = grid_fit.best_score_
-        
-        
+
     best_parameters = grid_fit.best_params_
     
-    return best_score, best_parameters
+    best_estimator = grid_fit.best_estimator_
+    
+    return best_score, best_parameters, best_estimator
 
 def findMissingValue(X):
     #Check out Empty Data
@@ -151,14 +152,18 @@ def findMissingValue(X):
 
     return EmptyDataList
 
-def submit(test_data, y_pred, filename):
+def submit(test_data, y_pred, filename, training):
 
     results = pd.DataFrame({
     'id' : test_data['id'].astype(np.int32),
     'price_doc' : y_pred
     })
 
-    results.to_csv("./submission/submission" + filename + ".csv", index=False)
+    if(training):
+        results.to_csv("./training/traiing" + filename + ".csv", index=False)
+    else:
+        results.to_csv("./submission/submission" + filename + ".csv", index=False)
+
 
 #Read dataset with pandas
 train_data = pd.read_csv("train.csv", quoting = 2)
@@ -167,6 +172,7 @@ macro_data = pd.read_csv("macro.csv", quoting = 2)
 
 #Separate data into X,y
 train_data_y = train_data.iloc[:,-1]
+'''
 train_data_X = train_data.iloc[:,1:-1]
 test_data_X = test_data.iloc[:,1:]
 #join macro environment
@@ -200,8 +206,12 @@ test_data_X = convert_to_float(test_data_X.values)
 #find MissingValue with return list of index of missing value
 emptyList_train = findMissingValue(train_data_X)
 emptyList_test = findMissingValue(test_data_X)
+'''
+train_data_X = pd.read_csv("./training/train_data_X_rfr__100.csv", quoting = 2)
+test_data_X = pd.read_csv("./training/test_data_X_rfr__100.csv", quoting = 2)
 
 
+'''
 #TODO: Modulaize it
 
 #set MissingValue with Random Forest
@@ -219,7 +229,7 @@ for i in emptyList_test:
 pd.DataFrame(train_data_X).to_csv("./ExtractedFeature/train_data_X_rfr_100.csv", index=False)
 
 pd.DataFrame(test_data_X).to_csv("./ExtractedFeature/test_data_X_rfr_100.csv", index=False)
-
+'''
 
 #TODO: future dig deep in feature extraction
 '''
@@ -253,14 +263,13 @@ for i in range(0, 1):
 
 #TODO: determine to have feature scaling or not
 
-'''
 # Feature Scaling
 sc_X = StandardScaler()
 train_data_X = sc_X.fit_transform(train_data_X)
 test_data_X = sc_X.transform(test_data_X)
 sc_y = StandardScaler()
 train_data_y = sc_y.fit_transform(train_data_y)
-'''
+
 #######################################-----Day 1 Finsihed-----#########################################
 
 #TODO: Consider to have feature reduction or not
@@ -326,19 +335,47 @@ etr_parameters = {'max_depth': [3, 5, 7],
 
 #etr_best_score, etr_best_parameters = AutoGridSearch(etr_parameters,etr_regressor)
 
+svr_regressor = svr(verbose = 10)
+
+svr_parameters = {'C': [0.001, 0.01, 0.1, 1, 10, 100],
+                  'degree': [1, 3, 5],
+                  'gamma': [0.001, 0.01, 0.1, 1]
+                  }
+
+svr_best_score, svr_best_parameters, svr_best_model = AutoGridSearch(svr_parameters,svr_regressor)
+
 
 #TODO: Ensemble with CV score implementation
 
+filename = "Ensemble-V3(with_SVR)-dataclean-rfr"
+
 # Ensemble Run
-ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [xgb_regressor, rfr_regressor, gbr_regressor, etr_regressor])
+ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [xgb_regressor, rfr_regressor, gbr_regressor, etr_regressor, svr_best_model])
 
-y_pred = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
+y_pred_train = ensemble.fit_predict(train_data_X, train_data_y, train_data_X)
 
-#xgb_regressor.fit(train_data_X, train_data_y)
+train_data_y = sc_y.inverse_transform(train_data_y)
+y_pred_train = sc_y.inverse_transform(y_pred_train)
 
-#y_pred = xgb_regressor.predict(test_data_X)
+y_pred_test = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
 
-submit(test_data, y_pred, "Ensemble-V2-dataclean-svr")
+y_pred_test = sc_y.inverse_transform(y_pred_train)
+
+submit(test_data, y_pred_test, filename, training = False)
+
+submit(train_data, y_pred_train, filename, training = True)
+
+score = rmsle(y_pred_train, train_data_y)
+
+results = pd.DataFrame({
+        'Trial' : filename,
+        'CV_score' : score
+        })
+
+results.to_csv("./score/score" + filename + ".csv", index=False)
+
+
+#submit(test_data, y_pred, "Ensemble-V2-dataclean-rfr", training = True)
 
 
 
