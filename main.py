@@ -267,8 +267,8 @@ for i in range(0, 1):
 sc_X = StandardScaler()
 train_data_X = sc_X.fit_transform(train_data_X)
 test_data_X = sc_X.transform(test_data_X)
-sc_y = StandardScaler()
-train_data_y = sc_y.fit_transform(train_data_y)
+#sc_y = StandardScaler()
+#train_data_y = sc_y.fit_transform(train_data_y)
 
 #######################################-----Day 1 Finsihed-----#########################################
 
@@ -354,12 +354,12 @@ ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [
 
 y_pred_train = ensemble.fit_predict(train_data_X, train_data_y, train_data_X)
 
-train_data_y = sc_y.inverse_transform(train_data_y)
-y_pred_train = sc_y.inverse_transform(y_pred_train)
+#train_data_y = sc_y.inverse_transform(train_data_y)
+#y_pred_train = sc_y.inverse_transform(y_pred_train)
 
 y_pred_test = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
 
-y_pred_test = sc_y.inverse_transform(y_pred_train)
+#y_pred_test = sc_y.inverse_transform(y_pred_train)
 
 submit(test_data, y_pred_test, filename, training = False)
 
