@@ -92,7 +92,6 @@ def rmsle(predicted, actual):
 
 def fillMissingValue(df, fy):
 
-    df = pd.DataFrame(df)
     train_data_temp = df[df.iloc[:,fy].notnull()]  
     test_data_temp = df[df.iloc[:,fy].isnull()]  
     train_y=train_data_temp.iloc[:,fy]
@@ -106,16 +105,15 @@ def fillMissingValue(df, fy):
     test_X = mixed_X[length_train:,:]
     
     print ("Try to fill-up value with rfr")
-    svr_regressor = svr()
-    #rfr_regressor=rfr(n_estimators=100, verbose = 5, n_jobs = -1)
+    #svr_regressor = svr()
+    rfr_regressor=rfr(n_estimators=100, verbose = 5, n_jobs = -1)
     #train the regressor
-    svr_regressor.fit(train_X,train_y)
-    y_pred = svr_regressor.predict(test_X)
+    rfr_regressor.fit(train_X,train_y)
+    y_pred = rfr_regressor.predict(test_X)
     
-    df[fy][df.iloc[:,fy].isnull()] = y_pred
+    df.iloc[:,fy] = df.iloc[:,fy].fillna(value = pd.Series(data = y_pred))
     
-    
-    return df.values
+    return df
 
 
 def AutoGridSearch(parameters, regressor):
@@ -146,8 +144,8 @@ def AutoGridSearch(parameters, regressor):
 def findMissingValue(X):
     #Check out Empty Data
     EmptyDataList = []
-    for i in range(0, len(X[0])):
-        if((np.isnan(np.min(X[:,i])))):
+    for i in range(0, len(X.iloc[0])):
+        if(np.any(np.isnan(X.iloc[:,i]))):
             EmptyDataList.append(i)
 
     return EmptyDataList
@@ -164,73 +162,53 @@ def submit(test_data, y_pred, filename, training):
     else:
         results.to_csv("./submission/submission" + filename + ".csv", index=False)
 
-
+'''
 #Read dataset with pandas
+train_data_X = pd.read_csv("train_data_X_mean.csv", quoting = 2)
+test_data_X = pd.read_csv("test_data_X_mean.csv", quoting = 2)
+train_data = pd.read_csv("train.csv", quoting = 2)
+train_data_y = train_data.iloc[:,-1]
+test_data = pd.read_csv("test.csv", quoting = 2)
+'''
+
 train_data = pd.read_csv("train.csv", quoting = 2)
 test_data = pd.read_csv("test.csv", quoting = 2)
 macro_data = pd.read_csv("macro.csv", quoting = 2)
 
 #Separate data into X,y
 train_data_y = train_data.iloc[:,-1]
-'''
 train_data_X = train_data.iloc[:,1:-1]
 test_data_X = test_data.iloc[:,1:]
 #join macro environment
-train_data_X = pd.merge(train_data_X, macro_data, left_on='timestamp', right_index=True,
-                  how='left', sort=False);
+train_data_X = pd.merge(train_data_X, macro_data, on='timestamp');
 train_data_X = train_data_X.iloc[:,1:]
 #join macro environment
-test_data_X = pd.merge(test_data_X, macro_data, left_on='timestamp', right_index=True,
-                  how='left', sort=False);
+test_data_X = pd.merge(test_data_X, macro_data, on='timestamp');
 test_data_X = test_data_X.iloc[:,1:]
 
 #One hot encoder for categorial variable
 mixed_data_X = train_data_X.append(test_data_X, ignore_index=True)
 length_train = len(train_data_X)
 mixed_data_X = pd.get_dummies(mixed_data_X)
-templist = []
-for i in range(0, len(mixed_data_X.iloc[0])):
-    if((np.isnan(np.max(mixed_data_X.iloc[:,i])))):
-        templist.append(i)
-        
-mixed_data_X = pd.DataFrame(mixed_data_X).drop(mixed_data_X.columns[templist], axis = 1)
 
+emptyList_mix = findMissingValue(mixed_data_X)
+
+for i in emptyList_mix:
+    print ("Filling-up column : " + str(i))
+    train_data_X = fillMissingValue(mixed_data_X, i)
+    print ("The result of fill-up value = " + str(np.isnan(np.min(mixed_data_X.iloc[:,i]))))
 
 train_data_X = mixed_data_X.iloc[:length_train,:]
 test_data_X = mixed_data_X.iloc[length_train:,:]
 
-#Convert into Float for further operation
-train_data_X = convert_to_float(train_data_X.values)
-test_data_X = convert_to_float(test_data_X.values)
+pd.DataFrame(train_data_X).to_csv("./training/train_data_X_rfr100.csv", index=False)
 
-#find MissingValue with return list of index of missing value
-emptyList_train = findMissingValue(train_data_X)
-emptyList_test = findMissingValue(test_data_X)
-'''
-train_data_X = pd.read_csv("./training/train_data_X_rfr__100.csv", quoting = 2)
-test_data_X = pd.read_csv("./training/test_data_X_rfr__100.csv", quoting = 2)
-
+pd.DataFrame(test_data_X).to_csv("./training/test_data_X_rfr100.csv", index=False)
 
 '''
-#TODO: Modulaize it
-
-#set MissingValue with Random Forest
-for i in emptyList_train:
-    print ("Filling-up Train column : " + str(i))
-    train_data_X = fillMissingValue(train_data_X, i)
-    print ("The result of fill-up value = " + str(np.isnan(np.min(train_data_X[:,i]))))
-
-
-for i in emptyList_test:
-    print ("Filling-up Test column : " + str(i))
-    test_data_X = fillMissingValue(test_data_X, i)
-    print ("The result of fill-up value = " + str(np.isnan(np.min(test_data_X[:,i]))))
-
-pd.DataFrame(train_data_X).to_csv("./ExtractedFeature/train_data_X_rfr_100.csv", index=False)
-
-pd.DataFrame(test_data_X).to_csv("./ExtractedFeature/test_data_X_rfr_100.csv", index=False)
+train_data_X = pd.read_csv("./training/train_data_X_rfr_100_Final.csv", quoting = 2)
+test_data_X = pd.read_csv("./training/test_data_X_rfr_100_Final.csv", quoting = 2)
 '''
-
 #TODO: future dig deep in feature extraction
 '''
 corr_matrix =  (pd.DataFrame(train_data_X).corr())
@@ -262,13 +240,14 @@ for i in range(0, 1):
 
 
 #TODO: determine to have feature scaling or not
-
+'''
 # Feature Scaling
 sc_X = StandardScaler()
 train_data_X = sc_X.fit_transform(train_data_X)
 test_data_X = sc_X.transform(test_data_X)
 #sc_y = StandardScaler()
 #train_data_y = sc_y.fit_transform(train_data_y)
+'''
 
 #######################################-----Day 1 Finsihed-----#########################################
 
@@ -334,7 +313,7 @@ etr_parameters = {'max_depth': [3, 5, 7],
               'random_state': [2017]}
 
 #etr_best_score, etr_best_parameters = AutoGridSearch(etr_parameters,etr_regressor)
-
+'''
 svr_regressor = svr(verbose = 10)
 
 svr_parameters = {'C': [0.001, 0.01, 0.1, 1, 10, 100],
@@ -343,40 +322,42 @@ svr_parameters = {'C': [0.001, 0.01, 0.1, 1, 10, 100],
                   }
 
 svr_best_score, svr_best_parameters, svr_best_model = AutoGridSearch(svr_parameters,svr_regressor)
-
+'''
 
 #TODO: Ensemble with CV score implementation
 
-filename = "Ensemble-V3(with_SVR)-dataclean-rfr"
+filename = "Ensemble-V6-dataclean-mean"
 
 # Ensemble Run
-ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [xgb_regressor, rfr_regressor, gbr_regressor, etr_regressor, svr_best_model])
 
-y_pred_train = ensemble.fit_predict(train_data_X, train_data_y, train_data_X)
+ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [xgb_regressor, rfr_regressor, gbr_regressor, etr_regressor])
 
-#train_data_y = sc_y.inverse_transform(train_data_y)
-#y_pred_train = sc_y.inverse_transform(y_pred_train)
+#xgb_regressor.fit(train_data_X, train_data_y)
+CVscore = []
+folds = list(KFold(len(train_data_y), n_folds= 5, random_state=2017))
+for j, (train_idx, test_idx) in enumerate(folds):
+    X_train = train_data_X[train_idx]
+    y_train = train_data_y[train_idx]
+    X_holdout = train_data_X[test_idx]
+    y_holdout = train_data_y[test_idx]
+    y_pred = ensemble.fit_predict(X_train, y_train, X_holdout)
+    score = rmsle(y_pred, y_holdout)
+    CVscore.append(score)
+
+finalCVscore = np.mean(CVscore)
+
+#y_pred_train = ensemble.fit_predict(train_data_X, train_data_y, train_data_X)
+#y_pred_train = xgb_regressor.predict(train_data_X)
 
 y_pred_test = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
+#y_pred_test = xgb_regressor.predict(test_data_X)
 
-#y_pred_test = sc_y.inverse_transform(y_pred_train)
 
 submit(test_data, y_pred_test, filename, training = False)
 
-submit(train_data, y_pred_train, filename, training = True)
+#submit(train_data, y_pred_train, filename, training = True)
 
-score = rmsle(y_pred_train, train_data_y)
-
-results = pd.DataFrame({
-        'Trial' : filename,
-        'CV_score' : score
-        })
-
-results.to_csv("./score/score" + filename + ".csv", index=False)
-
-
-#submit(test_data, y_pred, "Ensemble-V2-dataclean-rfr", training = True)
-
+#score = rmsle(y_pred_train, train_data_y)
 
 
 
