@@ -18,6 +18,7 @@ from sklearn.ensemble import RandomForestRegressor as rfr
 from sklearn.ensemble import GradientBoostingRegressor as gbr
 from sklearn.ensemble import ExtraTreesRegressor as etr
 from sklearn.svm import SVR as svr
+from sklearn.linear_model import LinearRegression as lr
 
 #Import Imputer for missing value fill-in
 from sklearn.preprocessing import Imputer
@@ -111,7 +112,8 @@ def fillMissingValue(df, fy):
     rfr_regressor.fit(train_X,train_y)
     y_pred = rfr_regressor.predict(test_X)
     
-    df.iloc[:,fy] = df.iloc[:,fy].fillna(value = pd.Series(data = y_pred))
+    #df.iloc[:,fy] = df.iloc[:,fy].fillna(value = pd.Series(data = y_pred))
+    df.iloc[:,fy] = df.iloc[:,fy].fillna(value = np.mean(df.iloc[:,fy]))
     
     return df
 
@@ -150,7 +152,7 @@ def findMissingValue(X):
 
     return EmptyDataList
 
-def submit(test_data, y_pred, filename, training):
+def submit(test_data, y_pred, filename, training, score = 0):
 
     results = pd.DataFrame({
     'id' : test_data['id'].astype(np.int32),
@@ -158,22 +160,38 @@ def submit(test_data, y_pred, filename, training):
     })
 
     if(training):
-        results.to_csv("./training/traiing" + filename + ".csv", index=False)
+        results.to_csv("./internal/training" + filename + "_" + str(score) + ".csv", index=False)
     else:
-        results.to_csv("./submission/submission" + filename + ".csv", index=False)
+        results.to_csv("./submission/submission" + filename + "_" + str(score) + ".csv", index=False)
 
-'''
+
 #Read dataset with pandas
-train_data_X = pd.read_csv("train_data_X_mean.csv", quoting = 2)
-test_data_X = pd.read_csv("test_data_X_mean.csv", quoting = 2)
+train_data_X = pd.read_csv("./training/train_data_X_rfr100.csv", quoting = 2)
+test_data_X = pd.read_csv("./training/test_data_X_rfr100.csv", quoting = 2)
 train_data = pd.read_csv("train.csv", quoting = 2)
 train_data_y = train_data.iloc[:,-1]
 test_data = pd.read_csv("test.csv", quoting = 2)
+
+train_lat_lon = pd.read_csv("./externaldata/train_lat_lon.csv", quoting = 2)
+test_lat_lon = pd.read_csv("./externaldata/test_lat_lon.csv", quoting = 2)
+train_lat_lon = train_lat_lon.iloc[:,2:4]
+test_lat_lon = test_lat_lon.iloc[:,2:4]
+train_data_X = pd.concat([train_data_X, train_lat_lon], axis = 1, ignore_index = True)
+test_data_X = pd.concat([test_data_X, test_lat_lon], axis = 1, ignore_index = True)
+
+
+
 '''
+
 
 train_data = pd.read_csv("train.csv", quoting = 2)
 test_data = pd.read_csv("test.csv", quoting = 2)
 macro_data = pd.read_csv("macro.csv", quoting = 2)
+train_lat_lon = pd.read_csv("./externaldata/train_lat_lon.csv", quoting = 2)
+test_lat_lon = pd.read_csv("./externaldata/test_lat_lon.csv", quoting = 2)
+train_lat_lon = train_lat_lon.iloc[:,2:4]
+test_lat_lon = test_lat_lon.iloc[:,2:4]
+
 
 #Separate data into X,y
 train_data_y = train_data.iloc[:,-1]
@@ -186,28 +204,39 @@ train_data_X = train_data_X.iloc[:,1:]
 test_data_X = pd.merge(test_data_X, macro_data, on='timestamp');
 test_data_X = test_data_X.iloc[:,1:]
 
+train_data_X = pd.concat([train_data_X, train_lat_lon], axis = 1, ignore_index = True)
+test_data_X = pd.concat([test_data_X, test_lat_lon], axis = 1, ignore_index = True)
+
 #One hot encoder for categorial variable
 mixed_data_X = train_data_X.append(test_data_X, ignore_index=True)
 length_train = len(train_data_X)
 mixed_data_X = pd.get_dummies(mixed_data_X)
 
+
 emptyList_mix = findMissingValue(mixed_data_X)
+
 
 for i in emptyList_mix:
     print ("Filling-up column : " + str(i))
-    train_data_X = fillMissingValue(mixed_data_X, i)
+    mixed_data_X = fillMissingValue(mixed_data_X, i)
     print ("The result of fill-up value = " + str(np.isnan(np.min(mixed_data_X.iloc[:,i]))))
 
 train_data_X = mixed_data_X.iloc[:length_train,:]
 test_data_X = mixed_data_X.iloc[length_train:,:]
 
+print (np.any(np.isnan(mixed_data_X)))
+print (np.any(np.isnan(train_data_X)))
+print (np.any(np.isnan(test_data_X)))
+print (len(train_data_X))
+print (len(test_data_X))
+print (len(train_data_X.iloc[0]))
+print (len(test_data_X.iloc[0]))
+
+
 pd.DataFrame(train_data_X).to_csv("./training/train_data_X_rfr100.csv", index=False)
 
 pd.DataFrame(test_data_X).to_csv("./training/test_data_X_rfr100.csv", index=False)
 
-'''
-train_data_X = pd.read_csv("./training/train_data_X_rfr_100_Final.csv", quoting = 2)
-test_data_X = pd.read_csv("./training/test_data_X_rfr_100_Final.csv", quoting = 2)
 '''
 #TODO: future dig deep in feature extraction
 '''
@@ -269,12 +298,66 @@ test_data_X_pca = pca.transform(test_data_X)
 '''
 
 #TODO: Modulize the parameter tuning
+# Setup ANN
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.wrappers.scikit_learn import KerasRegressor
+from keras.layers import Dropout
+
+def baseline_model(dropout_rate=0.0):
+    # create model
+    model = Sequential(length)
+    model.add(Dense(378, input_dim=length, kernel_initializer='normal', activation='relu'))
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(169, kernel_initializer='normal', activation='relu'))
+    model.add(Dropout(dropout_rate))    
+    model.add(Dense(84, kernel_initializer='normal', activation='relu'))
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(172, kernel_initializer='normal', activation='relu'))
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(85, kernel_initializer='normal', activation='relu'))
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(45, kernel_initializer='normal', activation='relu'))
+    model.add(Dropout(dropout_rate))
+    model.add(Dense(1, kernel_initializer='normal'))
+    # Compile model
+    model.compile(loss='mean_squared_logarithmic_error', optimizer='adam')
+    return model
+
+ann_regressor = KerasRegressor(build_fn=baseline_model(len(train_data_X)), epochs=30, batch_size=10, verbose=1)
+'''
+rmsle_scorer = make_scorer(score_func = rmsle, greater_is_better = False)
+dropout_rate = [0.0, 0.05, 0.1]
+param_grid = dict(dropout_rate=dropout_rate)
+grid = GridSearchCV(estimator=ann_regressor, param_grid=param_grid, cv=5, scoring = rmsle_scorer, verbose=10)
+grid_result = grid.fit(train_data_X.values, train_data_y.values)
+
+print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
+for params, mean_score, scores in grid_result.grid_scores_:
+    print("%f (%f) with: %r" % (scores.mean(), scores.std(), params))
+'''
+
 
 # Setup BaseModel - XGboost
 from xgboost import XGBRegressor as xgb
-xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsamples = 0.8, verbose = 10, random_state = 2017, n_jobs = -1)
-Stacker_xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsamples = 0.8, verbose = 10, random_state = 2017, n_jobs = -1)
 
+xgb_regressor = xgb(n_estimators = 200, verbose = 10, random_state = 2017, n_jobs = -1)
+
+xgb_parameters = {'learning_rate' : [0.01, 0.1, 1.0], 
+                 'min_child_weight' : [1, 3, 5],
+                 'max_depth' : [3,5,7],
+                 'subsample' : [0.6, 0.8, 1.0]}
+
+xgb_best_score, xgb_best_parameters, xgb_best_model = AutoGridSearch(xgb_parameters,xgb_regressor)
+
+
+xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsample = 0.8, verbose = 10, random_state = 2017, n_jobs = -1)
+
+'''
+Stacker_xgb_regressor = xgb(learning_rate = 0.0825, min_child_weight = 1, max_depth = 7, subsample = 0.8, verbose = 10, random_state = 2017, n_jobs = -1)
+'''
+
+lr_regressor = lr(multi_class='multinomial',solver='lbfgs')
 
 
 # Setup BaseModel - RandomForestRegressor
@@ -320,17 +403,33 @@ svr_parameters = {'C': [0.001, 0.01, 0.1, 1, 10, 100],
                   'degree': [1, 3, 5],
                   'gamma': [0.001, 0.01, 0.1, 1]
                   }
-
-svr_best_score, svr_best_parameters, svr_best_model = AutoGridSearch(svr_parameters,svr_regressor)
 '''
+#svr_best_score, svr_best_parameters, svr_best_model = AutoGridSearch(svr_parameters,svr_regressor)
 
 #TODO: Ensemble with CV score implementation
 
-filename = "Ensemble-V6-dataclean-mean"
+filename = "Ensemble_RFR100_20170602_V1"
 
 # Ensemble Run
 
-ensemble = Ensemble(n_folds = 5,stacker =  Stacker_xgb_regressor,base_models = [xgb_regressor, rfr_regressor, gbr_regressor, etr_regressor])
+ensemble = Ensemble(n_folds = 5,stacker =  lr_regressor,base_models = [xgb_regressor, rfr_regressor, gbr_regressor, etr_regressor, ann_regressor])
+
+#y_pred_train = grid_result.best_estimator_.predict(train_data_X.values)
+y_pred_train = ensemble.fit_predict(train_data_X, train_data_y, train_data_X)
+#y_pred_train = xgb_best_model.predict(train_data_X)
+
+#y_pred_test = grid_result.best_estimator_.predict(test_data_X.values)
+y_pred_test = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
+#y_pred_test = xgb_best_model.predict(test_data_X)
+
+score = rmsle(y_pred_train, train_data_y)
+
+submit(test_data, y_pred_test, filename, training = False, score)
+
+submit(train_data, y_pred_train, filename, training = True, score)
+
+'''
+#score = rmsle(y_pred_train, train_data_y)
 
 #xgb_regressor.fit(train_data_X, train_data_y)
 CVscore = []
@@ -345,19 +444,4 @@ for j, (train_idx, test_idx) in enumerate(folds):
     CVscore.append(score)
 
 finalCVscore = np.mean(CVscore)
-
-#y_pred_train = ensemble.fit_predict(train_data_X, train_data_y, train_data_X)
-#y_pred_train = xgb_regressor.predict(train_data_X)
-
-y_pred_test = ensemble.fit_predict(train_data_X, train_data_y, test_data_X)
-#y_pred_test = xgb_regressor.predict(test_data_X)
-
-
-submit(test_data, y_pred_test, filename, training = False)
-
-#submit(train_data, y_pred_train, filename, training = True)
-
-#score = rmsle(y_pred_train, train_data_y)
-
-
-
+'''
